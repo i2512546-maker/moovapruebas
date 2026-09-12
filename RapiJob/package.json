@@ -1,0 +1,19 @@
+{
+  "name": "rapijob",
+  "version": "0.1.0",
+  "description": "Plataforma de búsqueda y registro de técnicos con KPIs integrados",
+  "private": true,
+  "scripts": {
+    "dev": "docker compose up --build",
+    "dev:down": "docker compose down -v",
+    "db:migrate": "docker compose run --rm db psql -U postgres -d rapijob -f /workdir/db/schema.sql",
+    "db:seed": "docker compose run --rm db psql -U postgres -d rapijob -f /workdir/db/seed.sql",
+    "kpi:snapshot": "node scripts/kpi-snapshot.js",
+    "kpi:refresh": "docker compose exec db psql -U postgres -d rapijob -c \"REFRESH MATERIALIZED VIEW mv_platform_metrics\"",
+    "seed:passwords": "node scripts/seed-passwords.js"
+  },
+  "devDependencies": {
+    "bcryptjs": "^2.4.3",
+    "pg": "^8.12.0"
+  }
+}

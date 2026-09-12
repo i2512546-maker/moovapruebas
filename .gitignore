@@ -1,0 +1,21 @@
+# Variables de entorno (secretos) - nunca subir
+.env
+.env.*
+!.env.example
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+venv/
+env/
+.venv/
+instance/
+*.sqlite3
+
+# Node
+node_modules/
+
+# Otros
+*.log
+.DS_Store

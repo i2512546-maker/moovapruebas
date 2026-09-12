@@ -1,0 +1,6 @@
+Flask==3.0.0
+Flask-Limiter==3.5.1
+Werkzeug==3.0.1
+mysql-connector-python==8.0.33
+requests==2.31.0
+python-dotenv==1.0.0

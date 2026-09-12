@@ -1,0 +1,147 @@
+version: "3.8"
+
+# =====================================================================
+# MOOVA Clinic — Arquitectura de Microservicios
+# =====================================================================
+#
+# Levanta la aplicacion completa con Docker:
+#   - Main app (Flask):     puerto 5000
+#   - Audit service:        puerto 5001
+#   - Scheduler service:    puerto 5002
+#   - MySQL principal:      puerto 3306  (moovacloud_db)
+#   - MySQL audit:          puerto 3307  (audit_db)
+#   - MySQL scheduler:      puerto 3308  (scheduler_db)
+#
+# Uso:
+#   docker-compose up --build -d
+#   docker-compose down -v     (para resetear)
+# =====================================================================
+
+services:
+  # -------------------------------------------------------------------
+  # MySQL — Base principal (moovacloud_db)
+  # -------------------------------------------------------------------
+  main-mysql:
+    image: mysql:8.0
+    container_name: moova-main-mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: root-moova-pass
+      MYSQL_DATABASE: moovacloud_db
+      MYSQL_USER: moovacloud
+      MYSQL_PASSWORD: $Mo0vaCl1nic//
+    ports:
+      - "3306:3306"
+    volumes:
+      - main_mysql_data:/var/lib/mysql
+      - ./migrar_db_v2.sql:/docker-entrypoint-initdb.d/migrar_db_v2.sql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      timeout: 5s
+      retries: 10
+
+  # -------------------------------------------------------------------
+  # MySQL — Base de auditoria (audit_db)
+  # -------------------------------------------------------------------
+  audit-mysql:
+    image: mysql:8.0
+    container_name: moova-audit-mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: root-audit-pass
+      MYSQL_DATABASE: audit_db
+      MYSQL_USER: audit_user
+      MYSQL_PASSWORD: audit_pass_2025
+    ports:
+      - "3307:3306"
+    volumes:
+      - audit_mysql_data:/var/lib/mysql
+      - ./audit-service/audit_db.sql:/docker-entrypoint-initdb.d/audit_db.sql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      timeout: 5s
+      retries: 10
+
+  # -------------------------------------------------------------------
+  # MySQL — Base de horarios (scheduler_db)
+  # -------------------------------------------------------------------
+  scheduler-mysql:
+    image: mysql:8.0
+    container_name: moova-scheduler-mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: root-scheduler-pass
+      MYSQL_DATABASE: scheduler_db
+      MYSQL_USER: scheduler_user
+      MYSQL_PASSWORD: scheduler_pass_2025
+    ports:
+      - "3308:3306"
+    volumes:
+      - scheduler_mysql_data:/var/lib/mysql
+      - ./scheduler-service/scheduler_db.sql:/docker-entrypoint-initdb.d/scheduler_db.sql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      timeout: 5s
+      retries: 10
+
+  # -------------------------------------------------------------------
+  # Main App (Flask)
+  # -------------------------------------------------------------------
+  moova-app:
+    build:
+      context: ./moovafinal-main
+      dockerfile: Dockerfile
+    container_name: moova-app
+    restart: unless-stopped
+    ports:
+      - "5000:5000"
+    env_file:
+      - ./moovafinal-main/.env
+    environment:
+      DB_HOST: main-mysql
+      AUDIT_SERVICE_URL: http://audit-service:5001
+      SCHEDULER_SERVICE_URL: http://scheduler-service:5002
+    depends_on:
+      main-mysql:
+        condition: service_healthy
+    command: gunicorn --bind 0.0.0.0:5000 app:app
+
+  # -------------------------------------------------------------------
+  # Audit Service
+  # -------------------------------------------------------------------
+  audit-service:
+    build: ./audit-service
+    container_name: moova-audit-service
+    restart: unless-stopped
+    ports:
+      - "5001:5001"
+    env_file:
+      - ./audit-service/.env
+    environment:
+      DB_HOST: audit-mysql
+    depends_on:
+      audit-mysql:
+        condition: service_healthy
+
+  # -------------------------------------------------------------------
+  # Scheduler Service
+  # -------------------------------------------------------------------
+  scheduler-service:
+    build: ./scheduler-service
+    container_name: moova-scheduler-service
+    restart: unless-stopped
+    ports:
+      - "5002:5002"
+    env_file:
+      - ./scheduler-service/.env
+    environment:
+      DB_HOST: scheduler-mysql
+      APPOINTMENT_SERVICE_URL: http://moova-app:5000
+    depends_on:
+      scheduler-mysql:
+        condition: service_healthy
+
+volumes:
+  main_mysql_data:
+  audit_mysql_data:
+  scheduler_mysql_data:
